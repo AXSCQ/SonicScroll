@@ -15,11 +15,18 @@
         "dev": "esbuild src/sonicscroll.js --bundle --format=esm --outfile=dist/sonicscroll.js --watch"
     },
     "keywords": [
-        "scroll",
-        "animation",
-        "intersection-observer",
-        "audio-reactive",
-        "sonicmotion"
+        "scroll animation library",
+        "scroll triggered animation",
+        "AOS alternative",
+        "IntersectionObserver animation",
+        "animación al hacer scroll",
+        "audio-aware scroll effect",
+        "sonicmotion plugin",
+        "music scroll animation",
+        "librería animación scroll JS",
+        "scroll reveal animation",
+        "scroll fade in library",
+        "sonicscroll"
     ],
     "author": "axscq",
     "license": "MIT",
