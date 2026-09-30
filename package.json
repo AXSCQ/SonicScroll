@@ -1,6 +1,6 @@
 {
     "name": "sonicscroll",
-    "version": "1.0.1",
+    "version": "1.1.0",
     "description": "Scroll-triggered animation library with audio-aware mode. IntersectionObserver-based AOS alternative with SonicMotion integration. Zero dependencies.",
     "main": "src/sonicscroll.js",
     "module": "src/sonicscroll.js",
@@ -12,7 +12,8 @@
     ],
     "scripts": {
         "build": "esbuild src/sonicscroll.js --bundle --minify --format=esm --outfile=dist/sonicscroll.min.js",
-        "dev": "esbuild src/sonicscroll.js --bundle --format=esm --outfile=dist/sonicscroll.js --watch"
+        "dev": "esbuild src/sonicscroll.js --bundle --format=esm --outfile=dist/sonicscroll.js --watch",
+        "test": "node --test \"test/*.test.js\""
     },
     "keywords": [
         "scroll animation library",

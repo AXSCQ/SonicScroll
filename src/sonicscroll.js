@@ -2,7 +2,7 @@
  * SonicScroll — Scroll-triggered animation library with audio-aware mode.
  * Lightweight replacement for AOS (Animate On Scroll) with SonicMotion integration.
  * 
- * @version 1.0.0
+ * @version 1.1.0
  */
 
 import { IntersectionEngine } from './intersection-engine.js';
@@ -17,11 +17,16 @@ class SonicScrollInstance {
      * @param {boolean} [config.once=true] - Animate only once
      */
     constructor(config = {}) {
+        this._once = config.once ?? true;
         this._engine = new IntersectionEngine({
             rootMargin: config.rootMargin || '50px',
             threshold: config.threshold ?? 0.1,
-            once: config.once ?? true
+            once: this._once
         });
+        // prefers-reduced-motion: elements are shown at once, without moving
+        this._reducedMotion = config.respectReducedMotion !== false
+            && typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+            && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
         this._audioAware = null;
         this._triggers = [];
     }
@@ -51,9 +56,11 @@ class SonicScrollInstance {
      * @param {object} config - { delay, duration, distance, ... }
      */
     animate(selector, animation, config = {}) {
+        // a selector, one element, a NodeList or an array (a NodeList used to
+        // be treated as a single element and threw)
         const elements = typeof selector === 'string'
             ? Array.from(document.querySelectorAll(selector))
-            : [selector];
+            : (typeof selector?.length === 'number' ? Array.from(selector) : [selector]).filter(Boolean);
 
         const animFn = typeof animation === 'function'
             ? animation
@@ -66,14 +73,21 @@ class SonicScrollInstance {
 
         elements.forEach(el => {
             const trigger = animFn(el, config);
+            if (this._reducedMotion) {
+                (trigger.show ?? trigger)();
+                return;
+            }
             const delay = config.delay || 0;
+            let timer = null;
 
             this._engine.observe(el, () => {
-                if (delay > 0) {
-                    setTimeout(() => trigger(), delay);
-                } else {
-                    trigger();
-                }
+                clearTimeout(timer);
+                if (delay > 0) timer = setTimeout(() => trigger(), delay);
+                else trigger();
+            }, this._once ? undefined : () => {
+                // out of view: back to the initial state, so it plays again
+                clearTimeout(timer);
+                if (typeof trigger.reset === 'function') trigger.reset();
             });
 
             this._triggers.push({ element: el, trigger });
@@ -108,7 +122,7 @@ const SonicScroll = {
     animations: ANIMATIONS,
     AudioAware,
     IntersectionEngine,
-    version: '1.0.0'
+    version: '1.1.0'
 };
 
 export default SonicScroll;

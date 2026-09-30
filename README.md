@@ -156,3 +156,11 @@ scroll.destroy()                                 // Clean up all observers
 ## 📄 License
 
 MIT © 2025 axscq
+
+## Cambios v1.1.0
+
+- **`once: false`** ahora repite de verdad: al salir de la vista el elemento vuelve a su estado inicial y se anima otra vez al volver.
+- **`animate`** acepta un selector, un elemento, un array o un NodeList (antes un NodeList daba error).
+- **`prefers-reduced-motion`**: si el sistema pide menos movimiento, los elementos se muestran al instante (desactivable con `respectReducedMotion: false`).
+- Cada preset devuelve `trigger` con `trigger.reset()` y `trigger.show()`.
+- Pruebas: `npm test` (node:test).
