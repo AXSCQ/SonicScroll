@@ -1,5 +1,11 @@
 /**
  * IntersectionEngine — IntersectionObserver wrapper for scroll-triggered operations.
+ *
+ * El IntersectionObserver se crea al observar el primer elemento, no en el
+ * constructor: crear la instancia en SSR o en un navegador sin
+ * IntersectionObserver ya no lanza. Sin IntersectionObserver no se puede
+ * saber cuándo entra un elemento: se da por visible en el acto (mejor
+ * mostrarlo que dejarlo oculto para siempre).
  */
 
 export class IntersectionEngine {
@@ -17,6 +23,12 @@ export class IntersectionEngine {
         /** @type {Map<HTMLElement, {onEnter?: Function, onLeave?: Function}>} */
         this._callbacks = new Map();
 
+        /** @type {IntersectionObserver|null} */
+        this._observer = null;
+    }
+
+    _ensureObserver() {
+        if (this._observer || typeof IntersectionObserver === 'undefined') return this._observer;
         this._observer = new IntersectionObserver((entries) => {
             entries.forEach(entry => {
                 const cbs = this._callbacks.get(entry.target);
@@ -25,7 +37,7 @@ export class IntersectionEngine {
                 if (entry.isIntersecting) {
                     if (cbs.onEnter) cbs.onEnter(entry.target, entry);
                     if (this._once) {
-                        this._observer.unobserve(entry.target);
+                        this._observer?.unobserve(entry.target);
                         this._callbacks.delete(entry.target);
                     }
                 } else {
@@ -36,6 +48,7 @@ export class IntersectionEngine {
             rootMargin: this._rootMargin,
             threshold: this._threshold
         });
+        return this._observer;
     }
 
     /**
@@ -45,18 +58,24 @@ export class IntersectionEngine {
      * @param {Function} [onLeave]
      */
     observe(element, onEnter, onLeave) {
+        const observer = this._ensureObserver();
+        if (!observer) {
+            if (onEnter) onEnter(element, null);
+            return this;
+        }
         this._callbacks.set(element, { onEnter, onLeave });
-        this._observer.observe(element);
+        observer.observe(element);
         return this;
     }
 
     unobserve(element) {
-        this._observer.unobserve(element);
+        this._observer?.unobserve(element);
         this._callbacks.delete(element);
     }
 
     destroy() {
-        this._observer.disconnect();
+        this._observer?.disconnect();
+        this._observer = null;
         this._callbacks.clear();
     }
 }

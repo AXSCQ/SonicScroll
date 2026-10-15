@@ -5,7 +5,7 @@
 ![npm version](https://img.shields.io/npm/v/sonicscroll)
 ![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)
 
-**SonicScroll** is a lightweight, zero-dependency JavaScript library for scroll-triggered animations powered by the `IntersectionObserver` API. It's a modern, framework-agnostic alternative to AOS (Animate On Scroll) — with an optional **audio-aware mode** that lets scroll animations react to music via [SonicMotion](https://www.npmjs.com/package/sonicmotion).
+**SonicScroll** is a lightweight, zero-dependency JavaScript library for scroll-triggered animations powered by the `IntersectionObserver` API. It's a modern, framework-agnostic alternative to AOS (Animate On Scroll) — with an **AudioAware** helper that tells you which elements are on screen, so the effects you drive with [SonicMotion](https://www.npmjs.com/package/sonicmotion) only touch those.
 
 ---
 
@@ -13,7 +13,7 @@
 
 - 👀 **IntersectionObserver-based**: No scroll event listeners — performant by default.
 - 🎬 **Built-in Animations**: `slideUp`, `fadeIn`, `scaleIn`, `slideLeft`, `slideRight`, `flipIn` — out of the box.
-- 🎶 **Audio-Aware Mode**: Elements in the viewport can pulse or react to audio energy when music is playing.
+- 🎶 **AudioAware**: Tracks which elements are in the viewport; your audio-reactive code asks it before animating (it applies no effect by itself).
 - 🧩 **Declarative API**: Use `data-scroll` HTML attributes — no JavaScript setup required for basic use.
 - 🔩 **Fully Customizable**: Register custom animation functions and combine with any Web Audio API source.
 - ⚡ **Zero Dependencies**: Pure JavaScript, no build tool required.
@@ -68,7 +68,9 @@ scroll.animate('.card', 'fadeIn', { duration: 600 });
 scroll.animate('.logo', 'scaleIn');
 ```
 
-### Option 3: Audio-Aware Mode (with SonicMotion)
+### Option 3: AudioAware (with SonicMotion)
+
+AudioAware only knows which tracked elements are visible; the effect is yours:
 
 ```javascript
 import SonicScroll from 'sonicscroll';
@@ -76,15 +78,15 @@ import SonicScroll from 'sonicscroll';
 const scroll = SonicScroll.create();
 scroll.init();
 
-// Elements in viewport will pulse with the music
-const audioAware = scroll.createAudioAware({
-    selector: '[data-scroll]',   // Elements to watch
-    stem: 'kick',                // Audio stem to react to
-    effect: 'pulse'              // Effect while in viewport
-});
+const audioAware = scroll.createAudioAware({ threshold: 0.1 }); // rootMargin, threshold
+audioAware.trackAll('.pulse');                                  // or audioAware.track(element)
 
 sonic.onFrame((data) => {
-    audioAware.update(data);
+    const kick = data.drums?.bands?.bass?.punch ?? 0;
+    // only the elements on screen are touched
+    for (const el of audioAware.getVisible()) {
+        el.style.transform = `scale(${1 + kick * 0.08})`;
+    }
 });
 ```
 
@@ -96,21 +98,23 @@ sonic.onFrame((data) => {
 |---|---|---|
 | `data-scroll` | animation name | Triggers animation on scroll-into-view |
 | `data-scroll-delay` | milliseconds | Delay before animation triggers |
-| `data-scroll-duration` | milliseconds | Duration of the animation |
+| `data-scroll-duration` | milliseconds | Duration of the animation (`0`: no animation, it just appears) |
 | `data-scroll-distance` | pixels | Distance the element travels (for slide animations) |
 
 ---
 
 ## 🎞️ Built-in Animations
 
-| Animation | Description |
-|---|---|
-| `slideUp` | Slides element up from below |
-| `fadeIn` | Fades element in from invisible |
-| `scaleIn` | Scales element from 0 to full size |
-| `slideLeft` | Slides in from the right side |
-| `slideRight` | Slides in from the left side |
-| `flipIn` | Flips in from a perspective angle |
+| Animation | Description | Defaults |
+|---|---|---|
+| `slideUp` | Fades in while sliding up from `distance` px below | `distance: 40`, `duration: 700` |
+| `fadeIn` | Fades element in from invisible | `duration: 700` |
+| `scaleIn` | Fades in while scaling from `from` (`0.8`, not 0) to full size | `from: 0.8`, `duration: 500` |
+| `slideLeft` | Slides in **from the left** (starts `distance` px to the left, moves right) | `distance: 60`, `duration: 700` |
+| `slideRight` | Slides in **from the right** (starts `distance` px to the right, moves left) | `distance: 60`, `duration: 700` |
+| `flipIn` | Flips in from a 90° perspective angle (`axis: 'X'` or `'Y'`) | `duration: 600` |
+
+The initial states of all the elements prepared in the same task are written first and the browser lays out **once** for all of them (not once per element). With `prefers-reduced-motion: reduce` elements are shown at once (opt out with `respectReducedMotion: false`).
 
 ### Register Custom Animations
 
@@ -135,13 +139,22 @@ ANIMATIONS['myAnimation'] = (element, config) => {
 ## 🔌 JavaScript API
 
 ```javascript
-const scroll = SonicScroll.create(config);
+const scroll = SonicScroll.create({
+    rootMargin: '50px', threshold: 0.1, once: true, respectReducedMotion: true
+});
 
 scroll.init()                                    // Auto-parse [data-scroll] elements
-scroll.animate(selector, animation, config)      // Manually bind animation
-scroll.createAudioAware(config)                  // Enable audio-aware mode
-scroll.destroy()                                 // Clean up all observers
+scroll.animate(selector, animation, config)      // selector, element, NodeList or array; { delay, duration, distance, ... }
+scroll.createAudioAware(config)                  // AudioAware (a second call replaces the first)
+scroll.destroy()                                 // Clean up observers and delay timers; elements not shown yet appear in their final state
+
+// AudioAware
+audioAware.track(el); audioAware.trackAll(selector);
+audioAware.isVisible(el); audioAware.getVisible(); audioAware.filterVisible(list);
+audioAware.destroy();
 ```
+
+Without `IntersectionObserver` (very old browsers) the elements are shown right away; creating an instance during SSR does not throw.
 
 ---
 
@@ -156,6 +169,16 @@ scroll.destroy()                                 // Clean up all observers
 ## 📄 License
 
 MIT © 2025 axscq
+
+## Cambios v1.2.0
+
+- **Un solo reflujo**: los estados iniciales de todos los elementos preparados en la misma tarea se escriben primero y la transición se pone después de un único reflujo (antes cada elemento leía `offsetWidth`: 30 tarjetas de la Guía de LaPazPixelArt eran 30 recálculos de diseño sincrónicos; ahora 1). Si un elemento se anima en la misma tarea en que se preparó, el reflujo se adelanta y la animación sigue saliendo.
+- **`destroy()`** limpia los temporizadores de `delay` y muestra en su estado final lo que no llegó a verse (antes quedaba en `opacity: 0`).
+- **`animate()`** trata un `<form>` o un `<select>` como un elemento (antes, por tener `length`, animaba sus controles).
+- **Sin `IntersectionObserver` o en SSR** el constructor ya no lanza (el observador se crea al primer `animate()`); sin él, los elementos se muestran en el acto.
+- **`data-scroll-duration="0"`** (y `delay`/`distance` 0) son valores válidos, no el valor por defecto.
+- `createAudioAware()` dos veces destruye el anterior.
+- README: el "modo audio" con `selector`/`stem`/`effect` y `update(data)` no existía (AudioAware solo sabe qué está en pantalla); `slideLeft`/`slideRight` estaban invertidas y `scaleIn` empieza en 0,8, no en 0.
 
 ## Cambios v1.1.0
 

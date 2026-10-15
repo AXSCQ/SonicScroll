@@ -6,7 +6,42 @@
  * that plays the entrance. The trigger also carries `trigger.reset()`, which
  * puts the element back in the initial state — used by `once: false` so the
  * animation plays again every time the element comes back into view.
+ *
+ * Los estados iniciales se escriben sin transición y la transición se pone
+ * después, en lote, tras UN solo reflujo para todos los elementos preparados
+ * en la misma tarea (antes cada elemento leía offsetWidth: N recálculos de
+ * diseño sincrónicos al abrir una lista de N tarjetas).
  */
+
+/** @type {Map<HTMLElement, string>|null} - elementos que esperan su transición */
+let pending = null;
+
+function schedule(element, transition) {
+    if (!pending) {
+        pending = new Map();
+        const later = typeof queueMicrotask === 'function' ? queueMicrotask : (fn) => Promise.resolve().then(fn);
+        later(flushInitialStates);
+    }
+    pending.set(element, transition);
+}
+
+/**
+ * Pone ya las transiciones de los elementos preparados, con un solo reflujo
+ * para todos. Corre sola al terminar la tarea en curso (microtask), o antes si
+ * un elemento se anima en el acto.
+ */
+export function flushInitialStates() {
+    const batch = pending;
+    pending = null;
+    if (!batch || !batch.size) return;
+    // un solo reflujo: los estados iniciales de todos quedan aplicados sin transición
+    for (const el of batch.keys()) {
+        if (el.isConnected === false) continue;
+        void el.offsetWidth;
+        break;
+    }
+    for (const [el, transition] of batch) el.style.transition = transition;
+}
 
 /**
  * Build a preset from its initial and final styles.
@@ -19,20 +54,24 @@
 function preset(element, config, from, to, defaultDuration) {
     const duration = config.duration ?? defaultDuration;
     const props = Object.keys(to).map(p => p.replace(/[A-Z]/g, c => `-${c.toLowerCase()}`));
+    const transition = props.map(p => `${p} ${duration}ms ease-out`).join(', ');
     const apply = (styles) => { for (const [k, v] of Object.entries(styles)) element.style[k] = v; };
 
     const reset = () => {
         element.style.transition = 'none';
         apply(from);
-        // force the initial state before re-enabling the transition
-        void element.offsetWidth;
-        element.style.transition = props.map(p => `${p} ${duration}ms ease-out`).join(', ');
+        // the transition comes back after the (shared) reflow that applies the initial state
+        schedule(element, transition);
     };
     reset();
 
-    const trigger = () => apply(to);
+    const trigger = () => {
+        // animado en la misma tarea en que se preparó: primero el reflujo
+        if (pending?.has(element)) flushInitialStates();
+        apply(to);
+    };
     trigger.reset = reset;
-    trigger.show = () => { element.style.transition = 'none'; apply(to); };
+    trigger.show = () => { pending?.delete(element); element.style.transition = 'none'; apply(to); };
     return trigger;
 }
 

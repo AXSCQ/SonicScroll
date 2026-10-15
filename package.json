@@ -1,6 +1,6 @@
 {
     "name": "sonicscroll",
-    "version": "1.1.0",
+    "version": "1.2.0",
     "description": "Scroll-triggered animation library with audio-aware mode. IntersectionObserver-based AOS alternative with SonicMotion integration. Zero dependencies.",
     "main": "src/sonicscroll.js",
     "module": "src/sonicscroll.js",
